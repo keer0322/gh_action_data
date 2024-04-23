@@ -1,0 +1,45 @@
+
+name: Vault to GitHub Secret
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  retrieve-secret:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Vault CLI
+        run: |
+          curl -fsSL -o /tmp/vault.zip https://releases.hashicorp.com/vault/1.8.2/vault_1.8.2_linux_amd64.zip
+          unzip -o /tmp/vault.zip -d /usr/local/bin/
+
+      - name: Retrieve secret from Vault
+        id: vault-secret
+        run: |
+          export VAULT_ADDR="YOUR_VAULT_ADDRESS"
+          export VAULT_TOKEN="YOUR_VAULT_TOKEN"
+          secret_value=$(vault kv get -field=value path/to/your/secret)
+          echo "::set-output name=secret_value::$secret_value"
+
+      - name: Check if GitHub secret exists
+        id: check-secret
+        uses: gactions/check-secret@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          org: YOUR_ORGANIZATION_NAME
+          secret-name: YOUR_SECRET_NAME
+
+      - name: Set GitHub Secret
+        if: steps.check-secret.outputs.exists == 'false'
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const secretValue = process.env.secret_value;
+            console.log(`Setting GitHub secret: ${secretValue}`);
+            github.actions.createOrUpdateOrgSecret({
+              org: 'YOUR_ORGANIZATION_NAME',
+              secret_name: 'YOUR_SECRET_NAME',
+              encrypted_value: secretValue,
+            });
