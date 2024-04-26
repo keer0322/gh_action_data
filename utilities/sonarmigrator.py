@@ -17,6 +17,9 @@ source_project_keys_api = f"https://source.sonarcloud.io/api/components/search?q
 # API endpoint to create project on target instance
 target_create_project_api = "https://target.sonarcloud.io/api/projects/create"
 
+# API endpoint to fetch project settings
+source_project_settings_api = "https://source.sonarcloud.io/api/settings/values"
+
 # Initialize lists to store successful and failed projects
 successful_projects = []
 failed_projects = []
@@ -43,6 +46,20 @@ if response.status_code == 200:
         if response.status_code == 200:
             successful_projects.append(project_key)
             print(f"Project {project_key} migrated to target instance with response: {response.text}")
+
+            # Fetch project settings from source instance
+            settings_response = requests.get(source_project_settings_api, params={"component": project_key}, auth=(source_token,))
+            if settings_response.status_code == 200:
+                settings = settings_response.json()["settings"]
+
+                # Apply project settings to target instance
+                for setting in settings:
+                    setting_key = setting["key"]
+                    setting_value = setting["value"]
+                    target_settings_api = f"https://target.sonarcloud.io/api/settings/set?key={setting_key}&value={setting_value}"
+                    response = requests.post(target_settings_api, auth=(target_token,))
+                    if response.status_code != 200:
+                        print(f"Failed to apply setting {setting_key} to project {project_key} on target instance")
         else:
             failed_projects.append(project_key)
             print(f"Failed to migrate project {project_key} to target instance with response: {response.text}")
